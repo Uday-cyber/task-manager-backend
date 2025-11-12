@@ -6,6 +6,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node index.js",
+    "preinstall": "npm cache clean --force",
     "dev": "nodemon index.js"
   },
   "keywords": [],
