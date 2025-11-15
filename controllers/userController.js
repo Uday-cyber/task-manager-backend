@@ -2,13 +2,7 @@ import User from "../models/Users.js";
 import bcrypt from "bcryptjs";
 import jwt from 'jsonwebtoken';
 
-const generateAccessToken = (User) => {
-    return jwt.sign({ id: User._id}, process.env.JWT_SECRET, { expiresIn: '15m' });
-}
-
-const generateRefreshToken = (User) => {
-    return jwt.sign({ id: User._id}, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
-}
+import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 
 export const registerUser = async (req, res) => {
     try {
@@ -63,13 +57,16 @@ export const loginUser = async (req, res) => {
             return res.status(401).json({ message: 'Invalid password' });
         }
 
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
+        const accessToken = generateAccessToken(user._id);
+        const refreshToken = generateRefreshToken(user._id);
+
+        user.refreshTokens.push(refreshToken);
+        await user.save();
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: true,
-            sameSite: 'None',
+            sameSite: "None",
             maxAge: 7 * 24 * 60 * 60 * 1000,
         })
 
@@ -83,21 +80,38 @@ export const loginUser = async (req, res) => {
 }
 
 export const refreshToken = async(req, res) => {
+    const token = req.cookie?.refreshToken;
+    if(!token) return res.status(401).json({ error: 'No refresh token' });
+
     try{
-        const token = req.cookie.refreshToken;
-        if(!token) return res.status(401).json({ error: 'No refresh token' });
+        const payload  = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+        const user = await User.findById(payload.id);
+        if(!user) return res.status(404).json({ error: 'User not found' });
 
-        jwt.verify(token, process.env.JWT_REFRESH_SECRET, async(err, decoded) => {
-            if(err) return res.status(403).json({ error: 'Invalid refresh token' });
-            
-            const user = await User.findById(decoded._id);
-            if(!user) return res.status(404).json({ error: 'User not found' });
+        if(!user.refreshTokens.includes(token)) return res.status(403).json({error: 'Refresh Token revoked'});
+        
+        const newAccessToken = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: process.env.ACCESS_EXPIRES || '15m' });
+        return res.json({newAccessToken});
+    }
+    catch (err) {
+    console.error(err);
+    return res.status(403).json({ error: "Invalid refresh token" });
+    }
+}
 
-            const newAccessToken = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: '15m' });
-            res.json({newAccessToken});
-        });
-    }
-    catch(err){
-        res.status(500).json({ message: 'Server error', error: err.message });
-    }
+export const logoutUser = async (req, res) => {
+    try{
+        const token = req.cookie?.refreshToken;
+        if(token) {
+            const payload = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+            await User.findByIdAndUpdate(payload.id, {$pull: {refreshTokens: token}}); 
+        }
+    } catch(err){}
+
+    res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'None',
+    });
+    res.json({message: 'User Logged Out'});
 }
