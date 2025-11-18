@@ -5,8 +5,10 @@ import Task from "../models/Tasks.js";
 
 export const createTask = async (req, res) => {
     try{
-        const filePath = req.file ? `/uploads/${req.file.filename}` : null;
+        // const filePath = req.file ? `/uploads/${req.file.filename}` : null;
 
+        const filePath = req.file ? req.file.path : null;   
+        
         const createrTask = await Task.create({
             ...req.body,
             user: req.user._id,
@@ -47,11 +49,12 @@ export const updateTask = async (req, res) => {
         }
 
         if(req.file){
-            if(task.file){
-                const fullpath = path.join(process.cwd(), task.file);
-                fs.unlinkSync(fullpath);
-            }
-            task.file = `/uploads/${req.file.filename}`;
+            // if(task.file){
+            //     const fullpath = path.join(process.cwd(), task.file);
+            //     fs.unlinkSync(fullpath);
+            // }
+            // task.file = `/uploads/${req.file.filename}`;
+            task.file = req.file.path;
         }
 
         // task = await Task.findByIdAndUpdate(
@@ -79,10 +82,10 @@ export const deleteTask = async (req, res) => {
             return res.status(404).json({ message: 'Task not found' });
         }
 
-        if(task.file){
-            const fullpath = path.join(process.cwd(), task.file);
-            fs.unlinkSync(fullpath);
-        }
+        // if(task.file){
+        //     const fullpath = path.join(process.cwd(), task.file);
+        //     fs.unlinkSync(fullpath);
+        // }
 
         await task.deleteOne();
 
