@@ -45,7 +45,12 @@ export const getAllTasks = async (req, res) => {
   try {
     const { search, page = 1, limit = 5, sort = "-createdAt" } = req.query;
 
-    const query = { user: req.user._id };
+    // const query = { user: req.user._id };
+    let query = {};
+
+    if(req.user.role !== "admin"){
+        query.user = req.user._id;
+    }
 
     if (search) {
       query.title = { $regex: search, $options: "i" };
