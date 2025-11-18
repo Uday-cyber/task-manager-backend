@@ -13,12 +13,10 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-const upload = multer({
+export const upload = multer({
   storage,
   fileFilter
 });
-
-export default upload;
 
 
 
