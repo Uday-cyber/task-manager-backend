@@ -43,27 +43,49 @@ export const createTask = async (req, res) => {
 // GET ALL TASKS
 export const getAllTasks = async (req, res) => {
   try {
-    const { search, page = 1, limit = 5, sort = "-createdAt" } = req.query;
+    const { search, status, page = 1, limit = 10 } = req.query;
 
-    // const query = { user: req.user._id };
     let query = {};
 
-    if(req.user.role !== "admin"){
-        query.user = req.user._id;
+    if (req.user.role === "admin") {
+      query = {};
+    } else {
+      query.user = req.user._id;
     }
 
     if (search) {
-      query.title = { $regex: search, $options: "i" };
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } }
+      ];
     }
 
-    const tasks = await Task.find(query)
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+    if (status && status !== "all") {
+      query.status = status;
+    }
 
-    res.status(200).json(tasks);
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    const [tasks, total] = await Promise.all([
+      Task.find(query)
+        .populate("user", "username email role")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      Task.countDocuments(query),
+    ]);
+
+    res.json({
+      total,
+      page: pageNum,
+      pages: Math.ceil(total / limitNum),
+      tasks,
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
